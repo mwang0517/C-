@@ -1,1 +1,1 @@
-# c++ primer plus sixth edition exercise
+# c++ primer plus sixth edition 
