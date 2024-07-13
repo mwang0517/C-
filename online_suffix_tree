@@ -1,0 +1,208 @@
+#include <iostream>
+#include <map>
+#include <vector>
+#include <string>
+
+using namespace std;
+
+class SuffixTreeNode {
+public:
+    // Members
+    map<char, SuffixTreeNode*> children;
+    SuffixTreeNode* suffixLink; // Pointer to the other node
+    int start; // The start point of the substring
+    int* end; // A pointer point to the end position of the substring
+    int suffixIndex;
+    int leafCount; // Count number of suffixes end at this node. It is meaning for leaf nodes (count number of suffixes). Internal node does not directly represent the end of suffixes.
+    
+    // Constructor for initialize a node
+    SuffixTreeNode(int start, int* end) {
+        this->start = start;
+        this->end = end;
+        suffixLink = nullptr;
+        suffixIndex = -1;
+        leafCount = 0;
+    }
+    
+    // Function to calculate the length of an edge 
+    int edgeLength() {
+        return *end - start + 1;
+    }
+};
+
+class SuffixTree {
+private:
+    string text;
+    SuffixTreeNode* root;
+    SuffixTreeNode* lastNewNode;
+    SuffixTreeNode* activeNode; 
+
+    int activeEdge;
+    int activeLength;
+    int remainingSuffixCount; // Track the number of suffixes yet to be added to the tree.
+    int leafEnd;
+    int* rootEnd;
+    int* splitEnd;
+    int size; // Length of input string
+    
+    // Function to create a new node in the suffix tree 
+    SuffixTreeNode* newNode(int start, int* end) {
+        SuffixTreeNode* node = new SuffixTreeNode(start, end);
+        return node;
+    }
+    
+    // Extend the suffix tree
+    void extendSuffixTree(int pos) {
+        leafEnd = pos;
+
+        remainingSuffixCount++;
+        lastNewNode = nullptr;
+        
+        // This loop continues until all suffixes are added to the tree.
+        while (remainingSuffixCount > 0) {
+            if (activeLength == 0) {
+                activeEdge = pos;
+            }
+            
+            // The if-else statment check for existing edge
+            // If the edge does not exist, create a new leaf node directly
+            if (activeNode->children.find(text[activeEdge]) == activeNode->children.end()) {
+                activeNode->children[text[activeEdge]] = newNode(pos, &leafEnd);
+                activeNode->children[text[activeEdge]]->leafCount = 1; // A new suffix ending at this leaf node.
+                
+                // Update suffix links
+                if (lastNewNode != nullptr) {
+                    lastNewNode->suffixLink = activeNode;
+                    lastNewNode = nullptr;
+                }
+            } else { 
+                // If the edge exists
+                SuffixTreeNode* next = activeNode->children[text[activeEdge]];
+                if (walkDown(next)) {
+                    continue;
+                }
+                
+                // If the character matches the next character in the edge, increase activeLength
+                if (text[next->start + activeLength] == text[pos]) {
+                    if (lastNewNode != nullptr && activeNode != root) {
+                        lastNewNode->suffixLink = activeNode;
+                        lastNewNode = nullptr;
+                    }
+                    activeLength++;
+                    break;
+                }
+                
+                // If the character does not match the next character in the edge, split the edge by creating a new internal node
+                splitEnd = new int;
+                *splitEnd = next->start + activeLength - 1; // Determine the position in the text where the edge should be split. next-start is the start of the current edge, activeLength is the length of the substring that has matched so far. -1 will give the position of the last character in the matching substring.
+
+                SuffixTreeNode* split = newNode(next->start, splitEnd);
+                activeNode->children[text[activeEdge]] = split; // update the activeNode to be the split node.
+                
+                split->children[text[pos]] = newNode(pos, &leafEnd); // create new leaf node
+                next->start += activeLength;
+                split->children[text[next->start]] = next; // connect the split node to the next node
+
+                split->leafCount = next->leafCount + 1; // Update leaf count
+                
+                // Update last new node's suffix link
+                if (lastNewNode != nullptr) {
+                    lastNewNode->suffixLink = split;
+                }
+
+                lastNewNode = split;
+            }
+
+            remainingSuffixCount--;
+            
+            // update active point
+            if (activeNode == root && activeLength > 0) {
+                activeLength--;
+                activeEdge = pos - remainingSuffixCount + 1;
+            } else if (activeNode != root) {
+                activeNode = activeNode->suffixLink;
+            }
+        }
+    }
+    
+    // Walk down in the tree
+    bool walkDown(SuffixTreeNode* currNode) {
+        if (activeLength >= currNode->edgeLength()) {
+            activeEdge += currNode->edgeLength();
+            activeLength -= currNode->edgeLength();
+            activeNode = currNode;
+            return true;
+        }
+        return false;
+    }
+    
+    void setSuffixIndexByDFS(SuffixTreeNode* n, int labelHeight) {
+        if (n == nullptr) return;
+    
+        n->leafCount = 0; // count the number of leaf nodes in the subtree rooted at node n.
+        bool leaf = true;
+    
+        for (auto it = n->children.begin(); it != n->children.end(); ++it) {
+            leaf = false;
+            setSuffixIndexByDFS(it->second, labelHeight + it->second->edgeLength());
+            n->leafCount += it->second->leafCount; // Accumulate the total number of leaf nodes in the subtree
+        }
+    
+        if (leaf) {
+            n->suffixIndex = size - labelHeight;
+            n->leafCount = 1; // Leaf node represents a single suffix
+        }
+    }
+
+    void printInternalNodeLeaves(SuffixTreeNode* node, string label) {
+        if (node == nullptr) return;
+
+        if (node->suffixIndex == -1) { // Internal node
+            cout << "Internal node '" << label << "' has " << node->leafCount << " leaves." << endl;
+        }
+
+        for (auto& child : node->children) {
+            string childLabel = label + text.substr(child.second->start, *child.second->end - child.second->start + 1);
+            printInternalNodeLeaves(child.second, childLabel);
+        }
+    }
+
+public:
+    SuffixTree(string text) {
+        this->text = text;
+        size = text.length();
+
+        rootEnd = new int;
+        *rootEnd = -1;
+
+        root = newNode(-1, rootEnd);
+        activeNode = root;
+
+        activeEdge = -1;
+        activeLength = 0;
+        remainingSuffixCount = 0;
+        leafEnd = -1;
+        lastNewNode = nullptr;
+
+        for (int i = 0; i < size; i++) {
+            extendSuffixTree(i);
+        }
+
+        setSuffixIndexByDFS(root, 0);
+    }
+
+    void countInternalNodeLeaves() {
+        for (auto& child : root->children) {
+            printInternalNodeLeaves(child.second, text.substr(child.second->start, *child.second->end - child.second->start + 1));
+        }
+    }
+};
+
+int main() {
+    //string text = "abacababacabacaba$";
+    string text = "xabxa$";
+    //string text = "banana$";
+    SuffixTree tree(text);
+    tree.countInternalNodeLeaves();
+    return 0;
+}
