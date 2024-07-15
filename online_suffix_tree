@@ -21,7 +21,7 @@ public:
         this->end = end;
         suffixLink = nullptr;
         suffixIndex = -1;
-        leafCount = 0;
+        leafCount = 1;
     }
     
     // Function to calculate the length of an edge 
@@ -68,7 +68,7 @@ private:
             // If the edge does not exist, create a new leaf node directly
             if (activeNode->children.find(text[activeEdge]) == activeNode->children.end()) {
                 activeNode->children[text[activeEdge]] = newNode(pos, &leafEnd);
-                activeNode->children[text[activeEdge]]->leafCount = 1; // A new suffix ending at this leaf node.
+                // activeNode->children[text[activeEdge]]->leafCount = 1; // A new suffix ending at this leaf node.
                 
                 // Update suffix links
                 if (lastNewNode != nullptr) {
